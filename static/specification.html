@@ -18,22 +18,37 @@
         },
         editors: [
           {
+            name: 'Marcos Caceres',
+            company: 'W3C',
+            companyURL: 'https://w3.org/',
+            retiredDate: '2022-03-23',
+          },
+          {
+            name: 'Alex Lakatos',
+            email: 'alex@interledger.org',
+            company: 'Interledger Foundation',
+            companyURL: 'https://interledger.org/',
+          },
+          {
             name: 'Adrian Hope-Bailie',
             email: 'adrian@coil.com',
             company: 'Coil Technologies Inc.',
-            companyURL: 'https://coil.com'
+            companyURL: 'https://coil.com',
+            retiredDate: '2021-12-01',
           },
           {
             name: 'Ben Sharafian',
             email: 'ben@coil.com',
             company: 'Coil Technologies Inc.',
-            companyURL: 'https://coil.com'
+            companyURL: 'https://coil.com',
+            retiredDate: '2022-02-01',
           },
           {
-            name: 'Nick Dudfield',
+            name: 'Nicholas Dudfield',
+            email: 'niq@coil.com',
             company: 'Coil Technologies Inc.',
-            companyURL: 'https://coil.com'
-          }
+            companyURL: 'https://coil.com',
+          },
         ],
         shortName: 'web-monetization',
         specStatus: 'CG-DRAFT',
@@ -42,24 +57,21 @@
         localBiblio: {
           Interledger: {
             title: 'Interledger Protocol',
-            href: 'https://interledger.org/rfcs/0027-interledger-protocol-4/'
-          },
-          SPSP: {
-            title: 'Simple Payments Setup Protocol',
-            href:
-              'https://interledger.org/rfcs/0009-simple-payment-setup-protocol'
+            href: 'https://interledger.org/rfcs/0027-interledger-protocol-4/',
           },
           STREAM: {
             title: 'STREAM',
-            href:
-              'https://interledger.org/rfcs/0029-stream/'
+            href: 'https://interledger.org/rfcs/0029-stream/',
           },
           Receipt: {
             title: 'STREAM Receipt',
-            href:
-              'https://interledger.org/rfcs/0039-stream-receipts/'
+            href: 'https://interledger.org/rfcs/0039-stream-receipts/',
           },
-        }
+          'Open-Payments': {
+            title: 'Open Payments',
+            href: 'https://docs.openpayments.guide/',
+          },
+        },
       }
     </script>
   </head>
@@ -106,8 +118,8 @@
           One way is to call {{DOMTokenList/supports()}} on a [^link^]
           element's {{HTMLLinkElement/relList}} passing the `"monetization"`
           keyword. Alternatively, you can check if either the
-          {{MonetizationEvent}} interface or "`onmonetization`" [=event handler
-          IDL attribute=], exists on the {{Window}} object.
+          {{MonetizationEvent}} interface or the "`onmonetization`" [=event
+          handler IDL attribute=] exist on the {{Window}} object.
         </p>
         <aside class="example">
           <pre class="HTML">
@@ -162,15 +174,16 @@
         </h3>
         <p>
           The {{MonetizationEvent}} DOM events provide information such as the
-          amount received, the currency of the payment (what we call the "asset
-          code"), and a receipt that can be used to verify the receipt of
-          payment. As in the previous example above, these events are
-          dispatched to [^link^] elements and bubble up the DOM tree.
+          amount sent, the currency of the payment (what we call the "asset
+          code"), and a link to the incoming payment at the [=monetization
+          receiver=] which can be used to verify the receipt of payment. As in
+          the previous example above, these events are dispatched to [^link^]
+          elements and bubble up the DOM tree.
         </p>
         <p>
-          To listen for {{MonetizationEvent}} events, you need to add an
-          [=event listener=] to the the relevant [^link^] element via
-          JavaScript:
+          To listen for {{MonetizationEvent}} events, an [=event listener=]
+          needs to be added to the relevant [^link^] element (or to one of its
+          ancestors) via JavaScript:
         </p>
         <aside class="example">
           <pre class="html">
@@ -178,13 +191,12 @@
             &lt;script&gt;
               const link = document.querySelector('link[rel="monetization"]');
               link.addEventListener("monetization", event =&gt; {
-                // See how much your received and in what currency
+                // See how much was sent and in what currency
                 const { amount, assetCode, assetScale } = event;
-                console.log(`Received ${assetCode}${amount} (${assetScale}).`);
+                console.log(`Browser sent ${assetCode}${amount / (10 * assetScale)}.`);
 
-                // And use the receipt to verify the payment using
-                // a payment verification service (see next example).
-                verifyReceipt(event);
+                // Use the incoming payment URL to verify the payment at the receiver.
+                verifyPayment(event);
               });
             &lt;/script&gt;
           </pre>
@@ -192,27 +204,36 @@
       </section>
       <section>
         <h3>
-          Verifying a receipt
+          Verifying a payment
         </h3>
         <p>
-          The {{MonetizationEvent}}'s {{MonetizationEvent/receipt}} attribute
-          is a unique string can be used to verify the payment using a payment
-          verification service.
+          The {{MonetizationEvent}}'s {{MonetizationEvent/incomingPayment}}
+          attribute is a URL that can be used to verify the payment at the
+          [=monetization receiver=].
         </p>
         <p>
-          Below is a hypothetical verification service "verifier.example" that
-          performs verification via a `POST` HTTP request.
+          In most cases requests to the URL will need to be authenticated.
+          Below is a hypothetical verification endpoint that will make
+          authenticated requests to the receiver and return the results.
         </p>
         <aside class="example">
           <pre class="JS">
             /** @type {MonetizationEvent} event */
-            async function verifyReceipt(event) {
+            async function verifyPayment(event) {
+              // Legacy receivers don't support returning incoming payment URLs
+              if(!event.incomingPayment){
+                throw new Error('No incoming payment URL')
+              }
+
               const body = JSON.stringify({
-                receipt: event.receipt
+                incomingPayment: event.incomingPayment
               });
 
-              const response = await fetch('https://verifier.example/verify/', {
+              const response = await fetch('/verify', {
                 method: 'POST',
+                credentials: 'same-origin',
+                mode: 'same-origin',
+                cache: 'no-cache',
                 headers: {
                   'Content-Type': 'application/json'
                 },
@@ -220,9 +241,10 @@
               });
 
               if (response.ok) {
-                // The payment was verified
-              } else {
-                // The payment was not verified
+                // The incoming payment was fetched successfully
+                const { receivedAmount } = JSON.parse(response.json())
+                const { amount, assetCode, assetScale } = receivedAmount;
+                console.log(`Received ${assetCode}${amount / (10 * assetScale)}.`);
               }
             }
           </pre>
@@ -233,8 +255,8 @@
           Monetizing media
         </h3>
         <p>
-          The following example shows how to monetize various type of media
-          using different [=payment end-point=].
+          The following example shows how to monetize various types of media
+          using different [=payment end-points=].
         </p>
         <aside class="example">
           <pre class="html">
@@ -270,11 +292,9 @@
         </dt>
         <dd>
           The party making payments on behalf of the user. A monetization
-          provider leverages the [[[SPSP]]] (<abbr title=
-          "Simple Payment Setup Protocol">SPSP</abbr>) together with
-          [[[Interledger]]] (<abbr title=
-          "Interledger Protocol">ILP</abbr>)/[[[STREAM]]] to provide a
-          high-level way to pay a [=monetization receiver=].
+          provider leverages the [[[Interledger]]] suite of protocols and
+          technologies (e.g., [[Open-Payments]] based on [[STREAM]]) to provide
+          a high-level way to pay a [=monetization receiver=].
         </dd>
         <dt>
           <dfn>Monetization receiver</dfn>:
@@ -287,8 +307,18 @@
           <dfn>Payment end-point</dfn>:
         </dt>
         <dd>
-          A [=URL=] to a <a data-cite="SPSP#specification">SPSP end-point</a>
-          (i.e., a JSON resource containing details that facilitate payment).
+          A [=URL=] to a <a data-cite="Open-Payments#specification">Open
+          Payments account end-point</a> (i.e., a JSON resource containing
+          details that facilitate payment to an account).
+        </dd>
+        <dt>
+          <dfn>Payment session</dfn>
+        </dt>
+        <dd>
+          An session between a [=monetization provider=] and [=monetization
+          receiver=] initiated by the creation of an incoming payment resource
+          at the [=monetization receiver=]. One or more payments can be sent by
+          the [=monetization provider=] in a single session.
         </dd>
       </dl>
     </section>
@@ -306,7 +336,12 @@
         <li>Developers have a way to associate payments with their users, in
         order to provide a range of experiences.
         </li>
-        <li>Pays continuously as the user consumes content.
+        <li>Users retain control of if, when, and how payments are made to the
+        site. For example, micropayments of a predetermined monetary value
+        could be "streamed" to the site over time. Alternatively, the user
+        could make one or many discreet "one-off" payment(s) of any arbitrary
+        monetary amount, even while micropayments are simultaneously being
+        streamed.
         </li>
       </ul>
     </section>
@@ -324,7 +359,7 @@
         <p>
           Although a single HTML document can have multiple [^link^] elements
           with the "monetization" link type, the user agent might restrict the
-          number of concurrent [[STREAM]] connections it can simultaneously
+          number of concurrent [=payment sessions=] it can simultaneously
           support. In such a case, an "error" event will be fired at the
           [^link^] element where a connection can't be established.
         </p>
@@ -344,8 +379,9 @@
       </p>
       <div>
         <p>
-          There is no default type for resources given by the <code data-x=
-          "rel-monetization">monetization</code> keyword.
+          The default type for resources given by the <code data-x=
+          "rel-monetization">monetization</code> keyword is
+          <code>application/json</code>.
         </p>
         <p>
           The appropriate times to <span data-x=
@@ -495,8 +531,9 @@
           <li>
             <p>
               Otherwise, if <var>response</var>'s <span data-x=
-              "Content-Type">Content-Type metadata</span> is not a <span>JSON
-              MIME type</span>, then set <var>success</var> to false.
+              "Content-Type">Content-Type metadata</span> is not a
+              <code>application/json</code>, then set <var>success</var> to
+              false.
             </p>
           </li>
           <li>Let |json| be the result of [=parse JSON bytes to an Infra
@@ -504,16 +541,13 @@
           </li>
           <li>If |json| is an exception, then set <var>success</var> to false.
           </li>
-          <li>If |success| is true, [=perform simple payment validation=] with
-          |json| as per [[Interledger]], and set |success| to be the result.
-          </li>
           <li>
             <p>
-              If the user agent has exhausted the number of allowed [[STREAM]]
-              connections, set |success| to false.
+              If the user agent has exhausted the number of allowed [=payment
+              sessions=], set |success| to false.
             </p>
           </li>
-          <li>Otherwise, establish a new [[STREAM]] connection.
+          <li>Otherwise, establish a new [=payment session=].
           </li>
           <li>[=Queue an element task=] on the [=networking task source=] given
           |element| and the following steps:
@@ -529,7 +563,7 @@
       </div>
       <p>
         If a "monetization" <code>link</code> <span>becomes browsing-context
-        disconnected</span>, a user agent MUST stop monetization [[STREAM]].
+        disconnected</span>, a user agent MUST stop the [=payment session=].
       </p>
     </section>
     <section>
@@ -547,18 +581,23 @@
         monetization event
       </h2>
       <p>
-        When the [[[STREAM]]] connection has fulfilled an ILP |packet| with a
+        When the [=payment session=] has sent an |outgoing payment| with a
         non-zero amount, perform the following steps:
       </p>
       <ol class="algorithm">
         <li>Let |target:HTMLLinkElement| be the {{HTMLLinkElement}} associated
-        with the [[[STREAM]]] connection.
+        with the [=payment session=].
         </li>
         <li>If |target| is `null`, then return.
         </li>
         <li>Let |eventInitDict:MonetizationEventInit| be a
         {{MonetizationEventInit}} dictionary, whose members are initialized to
-        match |packet|'s details.
+        match |outgoing payment|'s details.
+          <p class="issue">
+            We probably need to canonicalize things like `assetCode` to
+            uppercase. See {{PaymentCurrencyAmount/currency}} for how it's done
+            in [[Payment-Request]].
+          </p>
         </li>
         <li>Let |event:MonetizationEvent| be a newly constructed
         {{MonetizationEvent}} initialized with |eventInitDict|.
@@ -600,19 +639,21 @@
         [SecureContext, Exposed=Window]
         interface MonetizationEvent : Event {
           constructor(DOMString type, MonetizationEventInit eventInitDict);
-          readonly attribute DOMString amount;
+          readonly attribute bigint amount;
           readonly attribute DOMString assetCode;
-          readonly attribute unsigned long long assetScale;
+          readonly attribute octet assetScale;
           readonly attribute DOMString? receipt;
           readonly attribute USVString paymentPointer;
+          readonly attribute USVString? incomingPayment;
         };
 
         dictionary MonetizationEventInit : EventInit {
-          required DOMString amount;
+          required bigint amount;
           required DOMString assetCode;
-          required unsigned long long assetScale;
+          required octet assetScale;
           required DOMString? receipt;
           required USVString paymentPointer;
+          required USVString? incomingPayment;
         };
       </pre>
       <section>
@@ -648,6 +689,16 @@
         <h2>
           <dfn>receipt</dfn> attribute
         </h2>
+        <div class="warning">
+          <p>
+            The [=receipt=] attribute is deprecated.
+          </p>
+          <p>
+            All [=monetization receivers=] should be migrating from generating
+            [[[Receipts]]] to supporting incoming payments via [[Open
+            Payments]].
+          </p>
+        </div>
         <p>
           `null` or a base64-encoded [[[Receipt]]] issued by the [=monetization
           receiver=] to the [=monetization provider=] as proof of the total
@@ -660,8 +711,17 @@
           <dfn>paymentPointer</dfn> attribute
         </h2>
         <p>
-          A URL representing a [=payment end-point=]. When getting, returns the
-          value it was initialized with.
+          A [=URL=] representing a [=payment end-point=]. When getting, returns
+          the value it was initialized with.
+        </p>
+      </section>
+      <section>
+        <h2>
+          <dfn>incomingPayment</dfn> attribute
+        </h2>
+        <p>
+          A [=URL=] representing an incoming payment at the [=monetization
+          receiver=]. When getting, returns the value it was initialized with.
         </p>
       </section>
     </section>
@@ -671,7 +731,7 @@
       </h2>
       <p>
         This specification defines a [=policy-controlled feature=] identified
-        by the string <dfn class="permission">"monetization"</dfn>. Its
+        by the string <dfn class="permission export">"monetization"</dfn>. Its
         <a>default allowlist</a> is `'self'`.
       </p>
       <aside class="note">
@@ -693,7 +753,7 @@
       </p>
       <section>
         <h3>
-          <dfn>monetization-src</dfn> directive
+          <dfn class="export">monetization-src</dfn> directive
         </h3>
         <p>
           The monetization-src directive restricts the URLs from which a
@@ -786,13 +846,13 @@
       </p>
       <p>
         As [=payment end-points=] are generally provided as a service (e.g.,
-        Uphold), a XSS attack could inject a malicious [=payment end-points=]
-        into a page that uses the same service. To mitigate such an attack, it
-        RECOMMENDED that developers:
+        Uphold), a <abbr title="Cross Site Scripting">XSS</abbr> attack could
+        inject malicious [=payment end-points=] into a page that uses the same
+        service. To mitigate such an attack, it is RECOMMENDED that developers:
       </p>
       <ul>
-        <li>host a [=payment end-point=] on their own servers and request
-        [[SPSP]] details from the provider on the server as needed.
+        <li>host a [=payment end-point=] on their own servers and proxy [[Open
+        Payments]] requests on the server as needed.
         </li>
         <li>Set the `monetization-src` CSP directive to restrict requests to
         origins they control and trust to host [=payment end-points=].
@@ -804,15 +864,15 @@
         Privacy considerations
       </h2>
       <p>
-        Web monetization is designed to be privacy-preserving: The user agent
+        Web Monetization is designed to be privacy-preserving: The user agent
         does not send any data to the [=monetization provider=]. Instead, it
         requests data from the [=monetization provider=] without ever revealing
         the URL of the web page the user is currently browsing.
       </p>
       <p>
         Further, the user agent gets the payment information from the [=payment
-        end-point=] to establish the [[STREAM]] connection. This also ensures
-        the [=monetization provider=] doesn't have access to a user's browsing
+        end-point=] to establish the [=payment session=]. This also ensures the
+        [=monetization provider=] doesn't have access to a user's browsing
         history or to the [=payment end-point=].
       </p>
     </section>
@@ -821,11 +881,10 @@
         Relation to Web Payments
       </h2>
       <p>
-        Unlike [[[Payment-Request]]] and the [[[Payment-Handler]]], Web
-        Monetization is intended for continuous payments rather than discrete
-        payments. Additionally, it is designed to <em>not</em> require any user
-        interaction, serving as an alternative to traditional e-commerce
-        checkout methods.
+        Unlike [[[Payment-Request]]] and the [[[Payment-Handler]]], which only
+        supports "one-off" payments, Web Monetization provides a [=payment
+        connection=] that supports both continuous payments and "one-off"
+        payments.
       </p>
     </section>
     <section id="conformance" class="appendix"></section>
