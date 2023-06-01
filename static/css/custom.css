@@ -1,9 +1,26 @@
 :root {
   --ifm-color-primary: #0080ff;
   --ifm-color-secondary: #282c34;
+  --ifm-footer-link-color: rgba(255, 255, 255, 0.8);
+}
+
+#browser-compatibility,
+.browser-compat {
+  display: none;
 }
 
 /* custom css */
+.twoColumns {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  border-bottom: 1px solid #e3e5e9;
+}
+
+.twoColumns .contentBlock {
+  border-bottom: none;
+}
+
 h2 {
   font-size: 40px;
   margin-top: 60px;
@@ -100,10 +117,14 @@ div.searchBox_node_modules-\@docusaurus-theme-classic-lib-theme-Navbar-Search-st
   position: absolute;
   margin-left: 666px;
   margin-top: -20px;
+  width: 25%;
+  z-index: 0;
 }
 
 .projectTitle {
   text-align: center;
+  z-index: 1;
+  position: relative;
 }
 
 .projectTitle > h2,
